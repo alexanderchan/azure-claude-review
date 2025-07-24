@@ -2,6 +2,7 @@
   "name": "@alexmchan/azure-claude-review",
   "version": "1.1.3",
   "description": "CLI tool to review code changes using Claude Code",
+  "type": "module",
   "main": "bin/claude-review.js",
   "repository": {
     "type": "git",
@@ -12,15 +13,13 @@
     "azure-claude-review": "bin/claude-review.js"
   },
   "scripts": {
+    "build": "node build.mjs",
+    "prepublish": "npm run build",
     "start": "node bin/claude-review.js",
     "test": "echo \"No tests yet\" && exit 0"
   },
-  "dependencies": {
-    "chalk": "^4.1.2",
-    "commander": "^11.1.0"
-  },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=22.0.0"
   },
   "keywords": [
     "claude",
@@ -33,9 +32,23 @@
   "files": [
     "bin/",
     "pr-review-prompt.md",
-    "README.md"
+    "README.md",
+    "src/"
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "esbuild": "^0.25.8",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@commander-js/extra-typings": "^14.0.0",
+    "@types/prompts": "^2.4.9",
+    "commander": "~14.0.0",
+    "execa": "^9.6.0",
+    "ora": "^8.2.0",
+    "prompts": "^2.4.2"
   }
 }

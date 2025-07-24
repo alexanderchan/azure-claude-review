@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npm install:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm run build:*)",
+      "Bash(ls:*)",
+      "Bash(/Users/alexanderchan/dev/cis/opensource/claude-code-review/bin/claude-review.js -d /Users/alexanderchan/dev/cis/apps/PGW-TemplateBuilder-BTP)"
     ],
     "deny": []
   }
