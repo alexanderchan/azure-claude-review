@@ -258,7 +258,7 @@ async function runClaudeCode(promptFile, contextFile) {
     console.log(chalk.gray(`Using Claude at: ${claudePath}`));
 
     // Run Claude with JSON output to capture cost and usage metrics
-    const args = ["--dangerously-skip-permissions", "--output-format", "json"];
+    const args = ["--allowedTools", "Bash(git *) Read Write Grep Glob TodoWrite", "--output-format", "json"];
 
     console.log(chalk.gray(`Running: ${claudePath} ${args.join(" ")}`));
 
