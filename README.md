@@ -4,6 +4,12 @@ A command-line tool to review code changes using Claude Code and optionally post
 
 ## Installation
 
+### From npm (recommended):
+
+```bash
+npm install -g @alexmchan/azure-claude-review
+```
+
 ### From this repository:
 
 ```bash
