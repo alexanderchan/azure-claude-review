@@ -3,6 +3,10 @@
   "version": "1.1.0",
   "description": "CLI tool to review code changes using Claude Code",
   "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alexanderchan/azure-claude-review"
+  },
   "bin": {
     "claude-review": "bin/claude-review.js",
     "azure-claude-review": "bin/claude-review.js"
