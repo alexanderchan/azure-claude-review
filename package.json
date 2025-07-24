@@ -5,7 +5,7 @@
   "main": "index.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/alexanderchan/azure-claude-review"
+    "url": "git+https://github.com/alexanderchan/azure-claude-review.git"
   },
   "bin": {
     "claude-review": "bin/claude-review.js",
