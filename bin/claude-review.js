@@ -41,6 +41,10 @@ program
     "--new-comment",
     "Always create a new comment instead of updating existing one"
   )
+  .option(
+    "--remove-review-file",
+    "Remove the claude-review.md file after processing"
+  )
   .parse();
 
 const options = program.opts();
@@ -135,7 +139,15 @@ async function main() {
 
     // Cleanup
     fs.unlinkSync(contextFile);
-    // Keep claude-review.md file for user reference
+    
+    // Optionally remove the review file
+    if (options.removeReviewFile && fs.existsSync(reviewFile)) {
+      fs.unlinkSync(reviewFile);
+      console.log(chalk.gray("🗑️  Removed claude-review.md file"));
+    } else {
+      // Keep claude-review.md file for user reference
+      console.log(chalk.gray("📄 claude-review.md saved for reference"));
+    }
   } catch (error) {
     console.error(chalk.red(`❌ Error: ${error.message}`));
     process.exit(1);
