@@ -4,16 +4,16 @@
   "description": "CLI tool to review code changes using Claude Code",
   "main": "index.js",
   "bin": {
-    "claude-review": "./bin/claude-review.js",
-    "azure-claude-review": "./bin/claude-review.js"
+    "claude-review": "bin/claude-review.js",
+    "azure-claude-review": "bin/claude-review.js"
   },
   "scripts": {
     "start": "node bin/claude-review.js",
     "test": "echo \"No tests yet\" && exit 0"
   },
   "dependencies": {
-    "commander": "^11.1.0",
-    "chalk": "^4.1.2"
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0"
   },
   "engines": {
     "node": ">=14.0.0"
