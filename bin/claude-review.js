@@ -4,7 +4,6 @@ const { program } = require('commander');
 const { execSync, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const https = require('https');
 const { URL } = require('url');
 const chalk = require('chalk');
 const readline = require('readline');
@@ -515,45 +514,29 @@ async function postToAzureDevOps(reviewContent, config) {
   }
 }
 
-function makeHttpRequest(url, options) {
-  return new Promise((resolve, reject) => {
-    const urlObj = new URL(url);
-    
-    const requestOptions = {
-      hostname: urlObj.hostname,
-      port: urlObj.port || 443,
-      path: urlObj.pathname + urlObj.search,
+async function makeHttpRequest(url, options = {}) {
+  try {
+    const fetchOptions = {
       method: options.method || 'GET',
       headers: options.headers || {}
     };
 
-    const req = https.request(requestOptions, (res) => {
-      let body = '';
-      
-      res.on('data', (chunk) => {
-        body += chunk;
-      });
-      
-      res.on('end', () => {
-        resolve({
-          statusCode: res.statusCode,
-          statusMessage: res.statusMessage,
-          headers: res.headers,
-          body: body
-        });
-      });
-    });
-
-    req.on('error', (error) => {
-      reject(error);
-    });
-
     if (options.body) {
-      req.write(options.body);
+      fetchOptions.body = options.body;
     }
-    
-    req.end();
-  });
+
+    const response = await fetch(url, fetchOptions);
+    const body = await response.text();
+
+    return {
+      statusCode: response.status,
+      statusMessage: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
+      body: body
+    };
+  } catch (error) {
+    throw error;
+  }
 }
 
 function askYesNo(question) {
