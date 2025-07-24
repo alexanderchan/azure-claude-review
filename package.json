@@ -1,10 +1,11 @@
 {
-  "name": "claude-code-review-cli",
+  "name": "@alexmchan/azure-claude-review",
   "version": "1.0.0",
   "description": "CLI tool to review code changes using Claude Code",
   "main": "index.js",
   "bin": {
-    "claude-review": "./bin/claude-review.js"
+    "claude-review": "./bin/claude-review.js",
+    "azure-claude-review": "./bin/claude-review.js"
   },
   "scripts": {
     "start": "node bin/claude-review.js",
@@ -19,7 +20,7 @@
   },
   "keywords": [
     "claude",
-    "code-review", 
+    "code-review",
     "git",
     "cli"
   ],
