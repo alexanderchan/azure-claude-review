@@ -257,20 +257,48 @@ async function runClaudeCode(promptFile, contextFile) {
 
     console.log(chalk.gray(`Using Claude at: ${claudePath}`));
 
-    // Run Claude with dangerously-skip-permissions and print mode
-    const args = ["--dangerously-skip-permissions", "--print"];
+    // Run Claude with JSON output to capture cost and usage metrics
+    const args = ["--dangerously-skip-permissions", "--output-format", "json"];
 
     console.log(chalk.gray(`Running: ${claudePath} ${args.join(" ")}`));
 
-    execSync(`${claudePath} ${args.join(" ")}`, {
+    const output = execSync(`${claudePath} ${args.join(" ")}`, {
       input: fullPrompt,
-      stdio: ["pipe", "inherit", "inherit"], // pipe stdin, inherit stdout/stderr
+      encoding: "utf8",
       env: { ...process.env },
     });
+
+    // Parse the JSON output to extract cost and usage information
+    try {
+      const result = JSON.parse(output);
+      displayClaudeMetrics(result);
+    } catch (parseError) {
+      console.log(chalk.yellow("⚠️  Could not parse Claude metrics from output"));
+    }
 
     return reviewFile;
   } catch (error) {
     throw new Error(`Claude execution failed: ${error.message}`);
+  }
+}
+
+function displayClaudeMetrics(result) {
+  if (result && result.duration_ms && result.total_cost_usd !== undefined && result.usage) {
+    console.log(chalk.cyan("\n📊 Claude Usage Metrics:"));
+    console.log(chalk.gray(`   Duration: ${result.duration_ms}ms`));
+    console.log(chalk.gray(`   Total Cost: $${result.total_cost_usd.toFixed(6)}`));
+    
+    const usage = result.usage;
+    if (usage.input_tokens) {
+      console.log(chalk.gray(`   Input Tokens: ${usage.input_tokens.toLocaleString()}`));
+    }
+    if (usage.cache_read_input_tokens) {
+      console.log(chalk.gray(`   Cache Read Tokens: ${usage.cache_read_input_tokens.toLocaleString()}`));
+    }
+    if (usage.output_tokens) {
+      console.log(chalk.gray(`   Output Tokens: ${usage.output_tokens.toLocaleString()}`));
+    }
+    console.log(); // Add blank line for spacing
   }
 }
 
