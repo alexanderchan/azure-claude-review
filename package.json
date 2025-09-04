@@ -46,6 +46,7 @@
   "dependencies": {
     "@commander-js/extra-typings": "^14.0.0",
     "@types/prompts": "^2.4.9",
+    "azure-devops-node-api": "^15.1.1",
     "commander": "~14.0.0",
     "execa": "^9.6.0",
     "ora": "^8.2.0",
