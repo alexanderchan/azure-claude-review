@@ -9,6 +9,18 @@ import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import pino from "pino";
+var logger = pino({
+  customLevels: {
+    log: 30
+  },
+  transport: {
+    target: "pino-pretty",
+    options: {
+      colorize: true
+    }
+  }
+});
 var __filename = fileURLToPath(import.meta.url);
 var __dirname = path.dirname(__filename);
 var program = new Command().name("claude-review").description("Review code changes using Claude Code").version("1.0.0").option("-d, --directory <path>", "Directory to review", process.cwd()).option("-c, --compare-branch <branch>", "Branch to compare against", "main").option(
@@ -40,8 +52,8 @@ async function main() {
   try {
     const spinner = ora("Starting Claude Code Review CLI").start();
     spinner.succeed("Claude Code Review CLI");
-    console.log(`Reviewing changes in: ${options.directory}`);
-    console.log(`Comparing against: ${options.compareBranch}`);
+    logger.log(`Reviewing changes in: ${options.directory}`);
+    logger.log(`Comparing against: ${options.compareBranch}`);
     process.chdir(options.directory);
     if (!fs.existsSync(".git")) {
       console.error("\u274C Not a git repository");
@@ -59,13 +71,13 @@ async function main() {
     const gitDiff = await getGitDiff(options.compareBranch);
     diffSpinner.succeed("Changes retrieved");
     if (!gitDiff.trim()) {
-      console.log("\u2705 No changes to review");
+      logger.log("\u2705 No changes to review");
       process.exit(0);
     }
     let reviewFile = path.join(process.cwd(), "claude-review.md");
     let review;
     if (options.useExistingReview && fs.existsSync(reviewFile)) {
-      console.log("\u{1F4C4} Using existing claude-review.md file...");
+      logger.log("\u{1F4C4} Using existing claude-review.md file...");
       review = processClaudeOutput(reviewFile);
     } else {
       const claudeSpinner = ora("Running Claude review...").start();
@@ -77,14 +89,17 @@ async function main() {
       claudeSpinner.succeed("Claude review completed");
       review = processClaudeOutput(reviewFile);
     }
-    console.log("\n\u2705 Review completed!\n");
-    console.log("=".repeat(50));
-    console.log(review);
-    console.log("=".repeat(50));
-    if (!options.noPost) {
+    logger.log("\n\u2705 Review completed!\n");
+    logger.log("=".repeat(50));
+    logger.log(review);
+    logger.log("=".repeat(50));
+    logger.log(`Review saved to: ${reviewFile}`);
+    logger.log(`options: ${JSON.stringify(options)}`);
+    if (!options?.noPost) {
+      logger.log("Azure DevOps posting...");
       const azureConfig = await getAzureDevOpsConfig();
       if (azureConfig) {
-        console.log(
+        logger.log(
           `Found PR: ${azureConfig.org}/${azureConfig.project} - PR #${azureConfig.prId}`
         );
         let shouldPost = options.post;
@@ -101,16 +116,16 @@ async function main() {
           await postToAzureDevOps(review, azureConfig);
         }
       } else {
-        console.log(
+        logger.log(
           "\u26A0\uFE0F  No Azure DevOps PR detected. Use --azure-pr <id> or set AZURE_DEVOPS_PR_ID"
         );
       }
     }
     if (options.removeReviewFile && fs.existsSync(reviewFile)) {
       fs.unlinkSync(reviewFile);
-      console.log("\u{1F5D1}\uFE0F  Removed claude-review.md file");
+      logger.log("\u{1F5D1}\uFE0F  Removed claude-review.md file");
     } else {
-      console.log("\u{1F4C4} claude-review.md saved for reference");
+      logger.log("\u{1F4C4} claude-review.md saved for reference");
     }
   } catch (error) {
     console.error(`\u274C Error: ${error.message}`);
@@ -201,14 +216,18 @@ Please write your review directly to a file called "claude-review.md" in the cur
         }
       }
     }
-    console.log(`Using Claude at: ${claudePath}`);
+    logger.log(`Using Claude at: ${claudePath}`);
+    logger.log(`Prompt file: ${promptFile}`);
+    logger.log(`Git diff: ${gitDiff}`);
+    logger.log(`Compare branch: ${compareBranch}`);
+    logger.log(`Prompt was: ${promptContent}`);
     const args = [
       "--allowedTools",
       "Bash(git *) Read Write Grep Glob TodoWrite",
       "--output-format",
       "json"
     ];
-    console.log(`Running: ${claudePath} ${args.join(" ")}`);
+    logger.log(`Running: ${claudePath} ${args.join(" ")}`);
     const result = await $({
       input: fullPrompt,
       env: { ...process.env }
@@ -218,7 +237,7 @@ Please write your review directly to a file called "claude-review.md" in the cur
       const result2 = JSON.parse(output);
       displayClaudeMetrics(result2);
     } catch (parseError) {
-      console.log("\u26A0\uFE0F  Could not parse Claude metrics from output");
+      logger.log("\u26A0\uFE0F  Could not parse Claude metrics from output");
     }
     return reviewFile;
   } catch (error) {
@@ -227,22 +246,21 @@ Please write your review directly to a file called "claude-review.md" in the cur
 }
 function displayClaudeMetrics(result) {
   if (result && result.duration_ms && result.total_cost_usd !== void 0 && result.usage) {
-    console.log("\n\u{1F4CA} Claude Usage Metrics:");
-    console.log(`   Duration: ${result.duration_ms}ms`);
-    console.log(`   Total Cost: $${result.total_cost_usd.toFixed(6)}`);
+    logger.log("\n\u{1F4CA} Claude Usage Metrics:");
+    logger.log(`   Duration: ${result.duration_ms}ms`);
+    logger.log(`   Total Cost: $${result.total_cost_usd.toFixed(6)}`);
     const usage = result.usage;
     if (usage.input_tokens) {
-      console.log(`   Input Tokens: ${usage.input_tokens.toLocaleString()}`);
+      logger.log(`   Input Tokens: ${usage.input_tokens.toLocaleString()}`);
     }
     if (usage.cache_read_input_tokens) {
-      console.log(
+      logger.log(
         `   Cache Read Tokens: ${usage.cache_read_input_tokens.toLocaleString()}`
       );
     }
     if (usage.output_tokens) {
-      console.log(`   Output Tokens: ${usage.output_tokens.toLocaleString()}`);
+      logger.log(`   Output Tokens: ${usage.output_tokens.toLocaleString()}`);
     }
-    console.log();
   }
 }
 function processClaudeOutput(reviewFile) {
@@ -266,12 +284,13 @@ async function getAzureDevOpsConfig() {
     return getConfigFromEnvVars();
   }
   try {
+    logger.log("Trying Azure CLI auto-detection...");
     const azConfig = await getConfigFromAzureCli();
     if (azConfig) {
       return azConfig;
     }
   } catch (error) {
-    console.log("Azure CLI detection failed, trying environment variables...");
+    logger.log("Azure CLI detection failed, trying environment variables...");
   }
   return getConfigFromEnvVars();
 }
@@ -293,7 +312,7 @@ async function getConfigFromAzureCli() {
       encoding: "utf8"
     }).trim();
     const prListOutput = execSync(
-      `az repos pr list --detect --status active --output json`,
+      `laz repos pr ist --detect --status active --output json`,
       { encoding: "utf8", stdio: "pipe" }
     );
     const prs = JSON.parse(prListOutput);
@@ -335,18 +354,18 @@ function parseAzurePr(pr) {
     const project = pr.repository.project.name;
     const urlMatch = pr.url.match(/https:\/\/([^\.]+)\.visualstudio\.com/);
     if (!urlMatch) {
-      console.log("\u26A0\uFE0F  Could not extract organization from PR URL");
+      logger.log("\u26A0\uFE0F  Could not extract organization from PR URL");
       return null;
     }
     const org = urlMatch[1];
     const token = process.env.AZURE_DEVOPS_TOKEN;
     if (!token) {
-      console.log("\u26A0\uFE0F  AZURE_DEVOPS_TOKEN environment variable is required");
+      logger.log("\u26A0\uFE0F  AZURE_DEVOPS_TOKEN environment variable is required");
       return null;
     }
     return { token, org, project, repo, prId };
   } catch (error) {
-    console.log(`\u26A0\uFE0F  Error parsing PR data: ${error.message}`);
+    logger.log(`\u26A0\uFE0F  Error parsing PR data: ${error.message}`);
     return null;
   }
 }
@@ -378,7 +397,7 @@ async function findExistingClaudeComment(config) {
     }
     return null;
   } catch (error) {
-    console.log(
+    logger.log(
       `Could not search for existing comments: ${error.message}`
     );
     return null;

@@ -9,6 +9,20 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
+import pino from "pino";
+
+const logger = pino({
+  customLevels: {
+    log: 30,
+  },
+  transport: {
+    target: "pino-pretty",
+    options: {
+      colorize: true,
+    },
+  },
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -89,8 +103,8 @@ async function main(): Promise<void> {
     const spinner = ora("Starting Claude Code Review CLI").start();
     spinner.succeed("Claude Code Review CLI");
 
-    console.log(`Reviewing changes in: ${options.directory}`);
-    console.log(`Comparing against: ${options.compareBranch}`);
+    logger.log(`Reviewing changes in: ${options.directory}`);
+    logger.log(`Comparing against: ${options.compareBranch}`);
 
     // Change to target directory
     process.chdir(options.directory);
@@ -117,7 +131,7 @@ async function main(): Promise<void> {
     diffSpinner.succeed("Changes retrieved");
 
     if (!gitDiff.trim()) {
-      console.log("✅ No changes to review");
+      logger.log("✅ No changes to review");
       process.exit(0);
     }
 
@@ -126,7 +140,7 @@ async function main(): Promise<void> {
 
     // Check if we should use existing review file
     if (options.useExistingReview && fs.existsSync(reviewFile)) {
-      console.log("📄 Using existing claude-review.md file...");
+      logger.log("📄 Using existing claude-review.md file...");
       review = processClaudeOutput(reviewFile);
     } else {
       // Run Claude
@@ -142,16 +156,21 @@ async function main(): Promise<void> {
       review = processClaudeOutput(reviewFile);
     }
 
-    console.log("\n✅ Review completed!\n");
-    console.log("=".repeat(50));
-    console.log(review);
-    console.log("=".repeat(50));
+    logger.log("\n✅ Review completed!\n");
+    logger.log("=".repeat(50));
+    logger.log(review);
+    logger.log("=".repeat(50));
+
+    logger.log(`Review saved to: ${reviewFile}`);
 
     // Handle Azure DevOps posting
-    if (!options.noPost) {
+    logger.log(`options: ${JSON.stringify(options)}`);
+
+    if (!options?.noPost) {
+      logger.log("Azure DevOps posting...");
       const azureConfig = await getAzureDevOpsConfig();
       if (azureConfig) {
-        console.log(
+        logger.log(
           `Found PR: ${azureConfig.org}/${azureConfig.project} - PR #${azureConfig.prId}`
         );
 
@@ -171,7 +190,7 @@ async function main(): Promise<void> {
           await postToAzureDevOps(review, azureConfig);
         }
       } else {
-        console.log(
+        logger.log(
           "⚠️  No Azure DevOps PR detected. Use --azure-pr <id> or set AZURE_DEVOPS_PR_ID"
         );
       }
@@ -180,10 +199,10 @@ async function main(): Promise<void> {
     // Optionally remove the review file
     if (options.removeReviewFile && fs.existsSync(reviewFile)) {
       fs.unlinkSync(reviewFile);
-      console.log("🗑️  Removed claude-review.md file");
+      logger.log("🗑️  Removed claude-review.md file");
     } else {
       // Keep claude-review.md file for user reference
-      console.log("📄 claude-review.md saved for reference");
+      logger.log("📄 claude-review.md saved for reference");
     }
   } catch (error) {
     console.error(`❌ Error: ${(error as Error).message}`);
@@ -300,7 +319,11 @@ Some notes:
       }
     }
 
-    console.log(`Using Claude at: ${claudePath}`);
+    logger.log(`Using Claude at: ${claudePath}`);
+    logger.log(`Prompt file: ${promptFile}`);
+    logger.log(`Git diff: ${gitDiff}`);
+    logger.log(`Compare branch: ${compareBranch}`);
+    logger.log(`Prompt was: ${promptContent}`);
 
     // Run Claude with JSON output to capture cost and usage metrics
     const args = [
@@ -310,7 +333,7 @@ Some notes:
       "json",
     ];
 
-    console.log(`Running: ${claudePath} ${args.join(" ")}`);
+    logger.log(`Running: ${claudePath} ${args.join(" ")}`);
 
     // Use execa to properly handle arguments with special characters
     const result = await $({
@@ -325,7 +348,7 @@ Some notes:
       const result: ClaudeResult = JSON.parse(output);
       displayClaudeMetrics(result);
     } catch (parseError) {
-      console.log("⚠️  Could not parse Claude metrics from output");
+      logger.log("⚠️  Could not parse Claude metrics from output");
     }
 
     return reviewFile;
@@ -341,23 +364,22 @@ function displayClaudeMetrics(result: ClaudeResult): void {
     result.total_cost_usd !== undefined &&
     result.usage
   ) {
-    console.log("\n📊 Claude Usage Metrics:");
-    console.log(`   Duration: ${result.duration_ms}ms`);
-    console.log(`   Total Cost: $${result.total_cost_usd.toFixed(6)}`);
+    logger.log("\n📊 Claude Usage Metrics:");
+    logger.log(`   Duration: ${result.duration_ms}ms`);
+    logger.log(`   Total Cost: $${result.total_cost_usd.toFixed(6)}`);
 
     const usage = result.usage;
     if (usage.input_tokens) {
-      console.log(`   Input Tokens: ${usage.input_tokens.toLocaleString()}`);
+      logger.log(`   Input Tokens: ${usage.input_tokens.toLocaleString()}`);
     }
     if (usage.cache_read_input_tokens) {
-      console.log(
+      logger.log(
         `   Cache Read Tokens: ${usage.cache_read_input_tokens.toLocaleString()}`
       );
     }
     if (usage.output_tokens) {
-      console.log(`   Output Tokens: ${usage.output_tokens.toLocaleString()}`);
+      logger.log(`   Output Tokens: ${usage.output_tokens.toLocaleString()}`);
     }
-    console.log(); // Add blank line for spacing
   }
 }
 
@@ -389,12 +411,13 @@ async function getAzureDevOpsConfig(): Promise<AzureConfig | null> {
 
   // Try Azure CLI auto-detection first
   try {
+    logger.log("Trying Azure CLI auto-detection...");
     const azConfig = await getConfigFromAzureCli();
     if (azConfig) {
       return azConfig;
     }
   } catch (error) {
-    console.log("Azure CLI detection failed, trying environment variables...");
+    logger.log("Azure CLI detection failed, trying environment variables...");
   }
 
   // Fallback to environment variables
@@ -427,7 +450,7 @@ async function getConfigFromAzureCli(): Promise<AzureConfig | null> {
 
     // Get all active PRs using az CLI auto-detection
     const prListOutput = execSync(
-      `az repos pr list --detect --status active --output json`,
+      `laz repos pr ist --detect --status active --output json`,
       { encoding: "utf8", stdio: "pipe" }
     );
 
@@ -485,7 +508,7 @@ function parseAzurePr(pr: any): AzureConfig | null {
     const urlMatch = pr.url.match(/https:\/\/([^\.]+)\.visualstudio\.com/);
 
     if (!urlMatch) {
-      console.log("⚠️  Could not extract organization from PR URL");
+      logger.log("⚠️  Could not extract organization from PR URL");
       return null;
     }
 
@@ -493,13 +516,13 @@ function parseAzurePr(pr: any): AzureConfig | null {
     const token = process.env.AZURE_DEVOPS_TOKEN;
 
     if (!token) {
-      console.log("⚠️  AZURE_DEVOPS_TOKEN environment variable is required");
+      logger.log("⚠️  AZURE_DEVOPS_TOKEN environment variable is required");
       return null;
     }
 
     return { token, org, project, repo, prId };
   } catch (error) {
-    console.log(`⚠️  Error parsing PR data: ${(error as Error).message}`);
+    logger.log(`⚠️  Error parsing PR data: ${(error as Error).message}`);
     return null;
   }
 }
@@ -543,7 +566,7 @@ async function findExistingClaudeComment(
 
     return null;
   } catch (error) {
-    console.log(
+    logger.log(
       `Could not search for existing comments: ${(error as Error).message}`
     );
     return null;
