@@ -69,7 +69,11 @@ async function main() {
       review = processClaudeOutput(reviewFile);
     } else {
       const claudeSpinner = ora("Running Claude review...").start();
-      reviewFile = await runClaudeCode(options.promptFile, gitDiff, options.compareBranch);
+      reviewFile = await runClaudeCode(
+        options.promptFile,
+        gitDiff,
+        options.compareBranch
+      );
       claudeSpinner.succeed("Claude review completed");
       review = processClaudeOutput(reviewFile);
     }
@@ -171,6 +175,9 @@ ${gitDiff}
 \`\`\`
 
 Please review these changes according to the prompt instructions.
+
+Some notes:
+- don't leave a grade or rating in the review
 `;
     const fullPrompt = `${promptContent}
 

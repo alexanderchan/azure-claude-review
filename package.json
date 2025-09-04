@@ -39,9 +39,9 @@
     "access": "public"
   },
   "devDependencies": {
-    "@types/node": "^24.1.0",
-    "esbuild": "^0.25.8",
-    "typescript": "^5.8.3"
+    "@types/node": "^24.3.1",
+    "esbuild": "^0.25.9",
+    "typescript": "^5.9.2"
   },
   "dependencies": {
     "@commander-js/extra-typings": "^14.0.0",
