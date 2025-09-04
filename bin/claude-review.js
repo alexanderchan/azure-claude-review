@@ -95,7 +95,7 @@ async function main() {
     logger.log("=".repeat(50));
     logger.log(`Review saved to: ${reviewFile}`);
     logger.log(`options: ${JSON.stringify(options)}`);
-    if (!options?.noPost) {
+    if (options.post !== false) {
       logger.log("Azure DevOps posting...");
       const azureConfig = await getAzureDevOpsConfig();
       if (azureConfig) {
@@ -281,17 +281,34 @@ function processClaudeOutput(reviewFile) {
 }
 async function getAzureDevOpsConfig() {
   if (options.useEnvVars) {
+    logger.debug(
+      "Using environment variables as requested by --use-env-vars flag"
+    );
     return getConfigFromEnvVars();
   }
   try {
     logger.log("Trying Azure CLI auto-detection...");
+    logger.debug("Calling getConfigFromAzureCli()");
     const azConfig = await getConfigFromAzureCli();
     if (azConfig) {
+      logger.debug(
+        "Successfully obtained Azure config from CLI: org=%s, project=%s, repo=%s, prId=%s",
+        azConfig.org,
+        azConfig.project,
+        azConfig.repo,
+        azConfig.prId
+      );
       return azConfig;
     }
+    logger.debug("getConfigFromAzureCli() returned null - no config found");
   } catch (error) {
     logger.log("Azure CLI detection failed, trying environment variables...");
+    logger.debug(
+      "getConfigFromAzureCli() threw error: %s",
+      error.message
+    );
   }
+  logger.debug("Falling back to environment variables");
   return getConfigFromEnvVars();
 }
 function getConfigFromEnvVars() {
@@ -307,65 +324,124 @@ function getConfigFromEnvVars() {
 }
 async function getConfigFromAzureCli() {
   try {
+    logger.debug("Starting getConfigFromAzureCli()");
+    logger.debug("Checking if Azure CLI is available");
     execSync("az --version", { stdio: "ignore" });
+    logger.debug("Azure CLI is available");
+    logger.debug("Getting current git branch");
     const currentBranch = execSync("git branch --show-current", {
       encoding: "utf8"
     }).trim();
+    logger.debug("Current branch detected: %s", currentBranch);
+    logger.debug("Fetching active PRs using Azure CLI auto-detection");
     const prListOutput = execSync(
-      `laz repos pr ist --detect --status active --output json`,
+      `az repos pr list --detect --status active --output json`,
       { encoding: "utf8", stdio: "pipe" }
     );
+    logger.debug(
+      "Raw PR list output received, length: %d",
+      prListOutput.length
+    );
     const prs = JSON.parse(prListOutput);
+    logger.debug("Parsed PR list, count: %d", prs.length);
     if (prs.length === 0) {
+      logger.debug("No active PRs found");
       if (options.azurePr) {
+        logger.debug(
+          "User specified PR ID, fetching specific PR: %s",
+          options.azurePr
+        );
         const prOutput = execSync(
           `az repos pr show --detect --id ${options.azurePr} --output json`,
           { encoding: "utf8", stdio: "pipe" }
         );
         const pr = JSON.parse(prOutput);
+        logger.debug("Specific PR fetched successfully");
         return parseAzurePr(pr);
       }
+      logger.debug("No PR ID specified, returning null");
       return null;
     }
+    logger.debug("Looking for PR matching current branch: %s", currentBranch);
     const matchingPr = prs.find((pr) => {
       const branchName = pr.sourceRefName.replace("refs/heads/", "");
+      logger.debug(
+        "Checking PR branch: %s against current: %s",
+        branchName,
+        currentBranch
+      );
       return branchName === currentBranch;
     });
     if (matchingPr) {
+      logger.debug(
+        "Found matching PR for current branch: prId=%s, sourceBranch=%s",
+        matchingPr.pullRequestId,
+        matchingPr.sourceRefName
+      );
       return parseAzurePr(matchingPr);
     }
+    logger.debug("No matching PR found for current branch");
     if (options.azurePr) {
+      logger.debug(
+        "No matching PR but user specified PR ID, fetching specific PR: %s",
+        options.azurePr
+      );
       const prOutput = execSync(
         `az repos pr show --detect --id ${options.azurePr} --output json`,
         { encoding: "utf8", stdio: "pipe" }
       );
       const pr = JSON.parse(prOutput);
+      logger.debug("Specific PR fetched successfully");
       return parseAzurePr(pr);
     }
+    logger.debug("No matching PR and no user-specified PR ID, returning null");
     return null;
   } catch (error) {
+    logger.debug(
+      "getConfigFromAzureCli() caught error: %s",
+      error.message
+    );
     return null;
   }
 }
 function parseAzurePr(pr) {
   try {
+    logger.debug("Starting parseAzurePr() for prId: %s", pr.pullRequestId);
     const prId = pr.pullRequestId.toString();
     const repo = pr.repository.name;
     const project = pr.repository.project.name;
+    logger.debug(
+      "Extracted basic PR info: prId=%s, repo=%s, project=%s",
+      prId,
+      repo,
+      project
+    );
+    logger.debug("Extracting organization from PR URL: %s", pr.url);
     const urlMatch = pr.url.match(/https:\/\/([^\.]+)\.visualstudio\.com/);
     if (!urlMatch) {
       logger.log("\u26A0\uFE0F  Could not extract organization from PR URL");
+      logger.debug("URL pattern match failed for URL: %s", pr.url);
       return null;
     }
     const org = urlMatch[1];
+    logger.debug("Successfully extracted organization: %s", org);
     const token = process.env.AZURE_DEVOPS_TOKEN;
     if (!token) {
       logger.log("\u26A0\uFE0F  AZURE_DEVOPS_TOKEN environment variable is required");
+      logger.debug("AZURE_DEVOPS_TOKEN environment variable not found");
       return null;
     }
+    logger.debug(
+      "Successfully created Azure config: org=%s, project=%s, repo=%s, prId=%s",
+      org,
+      project,
+      repo,
+      prId
+    );
     return { token, org, project, repo, prId };
   } catch (error) {
     logger.log(`\u26A0\uFE0F  Error parsing PR data: ${error.message}`);
+    logger.debug("parseAzurePr() caught error: %s", error.message);
     return null;
   }
 }
