@@ -19,7 +19,7 @@ logger.log(`📦 Output: ${outdir}/`);
 
 const result = await build({
   entryPoints: [entryPoint],
-  bundle: true,
+  bundle: false,
   platform: "node",
   target: "node22",
   packages: "external",

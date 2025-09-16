@@ -10,6 +10,13 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 import pino from "pino";
+import {
+  getCurrentBranch,
+  getRemoteUrl,
+  parseAzureDevOpsRemote,
+  isGitRepository,
+} from "./git.js";
+import { createConnection, getOrgUrl, findPullRequest } from "./ado.js";
 
 const logger = pino({
   customLevels: {
@@ -170,17 +177,15 @@ async function main(): Promise<void> {
       logger.log("Azure DevOps posting...");
       const azureConfig = await getAzureDevOpsConfig();
       if (azureConfig) {
-        logger.log(
-          `Found PR: ${azureConfig.org}/${azureConfig.project} - PR #${azureConfig.prId}`
-        );
-
         let shouldPost = options.post; // Auto-post if --post flag
 
         if (!shouldPost) {
+          logger.flush();
+
           const response = await prompts({
             type: "confirm",
             name: "post",
-            message: "Post this review to Azure DevOps PR?",
+            message: `Post this review to Azure DevOps PR ${azureConfig.org}/${azureConfig.project} - PR #${azureConfig.prId}?`,
             initial: true,
           });
           shouldPost = response.post;
@@ -412,7 +417,30 @@ async function getAzureDevOpsConfig(): Promise<AzureConfig | null> {
     return getConfigFromEnvVars();
   }
 
-  // Try Azure CLI auto-detection first
+  // Try reliable git + API detection first
+  try {
+    logger.log("Trying git + API detection...");
+    const azConfig = await getConfigFromGitAndApi();
+    if (azConfig) {
+      logger.debug(
+        "Successfully obtained Azure config from git + API: org=%s, project=%s, repo=%s, prId=%s",
+        azConfig.org,
+        azConfig.project,
+        azConfig.repo,
+        azConfig.prId
+      );
+      return azConfig;
+    }
+    logger.debug("getConfigFromGitAndApi() returned null - no config found");
+  } catch (error) {
+    logger.log("Git + API detection failed, trying Azure CLI...");
+    logger.debug(
+      "getConfigFromGitAndApi() threw error: %s",
+      (error as Error).message
+    );
+  }
+
+  // Fallback to Azure CLI auto-detection
   try {
     logger.log("Trying Azure CLI auto-detection...");
     logger.debug("Calling getConfigFromAzureCli()");
@@ -436,9 +464,82 @@ async function getAzureDevOpsConfig(): Promise<AzureConfig | null> {
     );
   }
 
-  // Fallback to environment variables
+  // Final fallback to environment variables
   logger.debug("Falling back to environment variables");
   return getConfigFromEnvVars();
+}
+
+async function getConfigFromGitAndApi(): Promise<AzureConfig | null> {
+  try {
+    logger.debug("Starting getConfigFromGitAndApi()");
+
+    // Check if we have the required token
+    const token = process.env.AZURE_DEVOPS_TOKEN;
+    if (!token) {
+      logger.debug("AZURE_DEVOPS_TOKEN not found");
+      return null;
+    }
+
+    // Check if we're in a git repository
+    if (!(await isGitRepository())) {
+      logger.debug("Not in a git repository");
+      return null;
+    }
+
+    // Get current branch
+    const currentBranch = await getCurrentBranch();
+    logger.debug("Current branch: %s", currentBranch);
+
+    // Get remote URL and parse Azure DevOps info
+    const remoteUrl = await getRemoteUrl();
+    logger.debug("Remote URL: %s", remoteUrl);
+
+    const remoteInfo = parseAzureDevOpsRemote(remoteUrl);
+    logger.debug(
+      "Parsed remote info: org=%s, project=%s, repo=%s",
+      remoteInfo.organization,
+      remoteInfo.project,
+      remoteInfo.repository
+    );
+
+    // If user specified PR ID, use it directly
+    if (options.azurePr) {
+      logger.debug("Using user-specified PR ID: %s", options.azurePr);
+      return {
+        token,
+        org: remoteInfo.organization,
+        project: remoteInfo.project,
+        repo: remoteInfo.repository,
+        prId: options.azurePr,
+      };
+    }
+
+    // Create connection and find PR for current branch
+    const orgUrl = getOrgUrl(remoteInfo.organization);
+    const connection = createConnection(orgUrl, token);
+
+    logger.debug("Searching for PR for branch: %s", currentBranch);
+    const pr = await findPullRequest(connection, remoteInfo, currentBranch);
+
+    if (!pr) {
+      logger.debug("No PR found for current branch");
+      return null;
+    }
+
+    return {
+      token,
+      org: remoteInfo.organization,
+      project: remoteInfo.project,
+      repo: remoteInfo.repository,
+      prId: pr.pullRequestId?.toString() || "",
+    };
+  } catch (error) {
+    logger.debug(
+      "getConfigFromGitAndApi() error: %s",
+      (error as Error).message
+    );
+    return null;
+  }
 }
 
 function getConfigFromEnvVars(): AzureConfig | null {

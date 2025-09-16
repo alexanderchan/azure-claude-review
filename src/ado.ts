@@ -1,10 +1,9 @@
 import * as azdev from "azure-devops-node-api";
 import { GitApi } from "azure-devops-node-api/GitApi";
 import { WorkItemTrackingApi } from "azure-devops-node-api/WorkItemTrackingApi";
-import {
-  GitPullRequest,
-  PullRequestStatus,
-} from "azure-devops-node-api/interfaces/GitInterfaces";
+import { PullRequestStatus } from "azure-devops-node-api/interfaces/GitInterfaces";
+
+import type { GitPullRequest } from "azure-devops-node-api/interfaces/GitInterfaces";
 import { WorkItem } from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces";
 import { GitRemoteInfo } from "./git.js";
 
@@ -66,8 +65,8 @@ export async function findPullRequest(
       remoteInfo.project
     );
 
-    console.log(`Found ${pullRequests?.length || 0} active pull requests`);
-    console.dir(pullRequests);
+    // console.log(`Found ${pullRequests?.length || 0} active pull requests`);
+    // console.dir(pullRequests);
     // If no active PRs found, try without status filter to see all PRs
     if (!pullRequests?.length) {
       console.log("No active PRs found, searching all statuses...");
@@ -99,13 +98,13 @@ export async function findPullRequest(
     }
 
     const pr = pullRequests[0];
-    console.dir("Using PR:", {
-      id: pr.pullRequestId,
-      title: pr.title,
-      status: pr.status,
-      sourceRefName: pr.sourceRefName,
-      pr,
-    });
+    // console.dir("Using PR:", {
+    //   id: pr.pullRequestId,
+    //   title: pr.title,
+    //   status: pr.status,
+    //   sourceRefName: pr.sourceRefName,
+    //   pr,
+    // });
 
     return pr;
   } catch (error) {
