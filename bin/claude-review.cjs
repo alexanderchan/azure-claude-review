@@ -22,18 +22,32 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 }) : target, mod));
 
 //#endregion
-const __commander_js_extra_typings = __toESM(require("@commander-js/extra-typings"));
-const execa = __toESM(require("execa"));
-const prompts = __toESM(require("prompts"));
-const ora = __toESM(require("ora"));
-const child_process = __toESM(require("child_process"));
-const fs = __toESM(require("fs"));
-const path = __toESM(require("path"));
-const url = __toESM(require("url"));
-const pino = __toESM(require("pino"));
-const zx = __toESM(require("zx"));
-const azure_devops_node_api = __toESM(require("azure-devops-node-api"));
-const azure_devops_node_api_interfaces_GitInterfaces = __toESM(require("azure-devops-node-api/interfaces/GitInterfaces"));
+let __commander_js_extra_typings = require("@commander-js/extra-typings");
+__commander_js_extra_typings = __toESM(__commander_js_extra_typings);
+let execa = require("execa");
+execa = __toESM(execa);
+let prompts = require("prompts");
+prompts = __toESM(prompts);
+let ora = require("ora");
+ora = __toESM(ora);
+let child_process = require("child_process");
+child_process = __toESM(child_process);
+let fs = require("fs");
+fs = __toESM(fs);
+let path = require("path");
+path = __toESM(path);
+let url = require("url");
+url = __toESM(url);
+let minimatch = require("minimatch");
+minimatch = __toESM(minimatch);
+let pino = require("pino");
+pino = __toESM(pino);
+let zx = require("zx");
+zx = __toESM(zx);
+let azure_devops_node_api = require("azure-devops-node-api");
+azure_devops_node_api = __toESM(azure_devops_node_api);
+let azure_devops_node_api_interfaces_GitInterfaces = require("azure-devops-node-api/interfaces/GitInterfaces");
+azure_devops_node_api_interfaces_GitInterfaces = __toESM(azure_devops_node_api_interfaces_GitInterfaces);
 
 //#region src/git.ts
 /**
@@ -41,8 +55,7 @@ const azure_devops_node_api_interfaces_GitInterfaces = __toESM(require("azure-de
 */
 async function getCurrentBranch() {
 	try {
-		const result = await zx.$`git rev-parse --abbrev-ref HEAD`;
-		return result.stdout.trim();
+		return (await zx.$`git rev-parse --abbrev-ref HEAD`).stdout.trim();
 	} catch (error) {
 		throw new Error(`Failed to get current branch: ${error}`);
 	}
@@ -52,8 +65,7 @@ async function getCurrentBranch() {
 */
 async function getRemoteUrl() {
 	try {
-		const result = await zx.$`git remote get-url origin`;
-		return result.stdout.trim();
+		return (await zx.$`git remote get-url origin`).stdout.trim();
 	} catch (error) {
 		throw new Error(`Failed to get remote URL: ${error}`);
 	}
@@ -127,16 +139,15 @@ async function findPullRequest(connection, remoteInfo, branchName) {
 			console.log("No active PRs found, searching all statuses...");
 			pullRequests = await gitApi.getPullRequests(remoteInfo.repository, { sourceRefName }, remoteInfo.project);
 			console.log(`Found ${pullRequests?.length || 0} pull requests (all statuses)`);
-			if (pullRequests?.length) pullRequests.forEach((pr$1, index) => {
-				console.log(`PR ${index + 1}: ID=${pr$1.pullRequestId}, Status=${pr$1.status}, Title="${pr$1.title}"`);
+			if (pullRequests?.length) pullRequests.forEach((pr, index) => {
+				console.log(`PR ${index + 1}: ID=${pr.pullRequestId}, Status=${pr.status}, Title="${pr.title}"`);
 			});
 		}
 		if (!pullRequests?.length) {
 			console.log("No pull requests found for branch:", branchName);
 			return null;
 		}
-		const pr = pullRequests[0];
-		return pr;
+		return pullRequests[0];
 	} catch (error) {
 		console.error("findPullRequest error:", error);
 		throw new Error(`Failed to find pull request: ${error}`);
@@ -159,8 +170,7 @@ program.parse();
 const options = program.opts();
 async function main() {
 	try {
-		const spinner = (0, ora.default)("Starting Claude Code Review CLI").start();
-		spinner.succeed("Claude Code Review CLI");
+		(0, ora.default)("Starting Claude Code Review CLI").start().succeed("Claude Code Review CLI");
 		logger.log(`Reviewing changes in: ${options.directory}`);
 		logger.log(`Comparing against: ${options.compareBranch}`);
 		process.chdir(options.directory);
@@ -205,13 +215,12 @@ async function main() {
 				let shouldPost = options.post;
 				if (!shouldPost) {
 					logger.flush();
-					const response = await (0, prompts.default)({
+					shouldPost = (await (0, prompts.default)({
 						type: "confirm",
 						name: "post",
 						message: `Post this review to Azure DevOps PR ${azureConfig.org}/${azureConfig.project} - PR #${azureConfig.prId}?`,
 						initial: true
-					});
-					shouldPost = response.post;
+					})).post;
 				}
 				if (shouldPost) await postToAzureDevOps(review, azureConfig);
 			} else logger.log("⚠️  No Azure DevOps PR detected. Use --azure-pr <id> or set AZURE_DEVOPS_PR_ID");
@@ -234,8 +243,7 @@ async function getGitDiff(compareBranch) {
 				maxBuffer: 50 * 1024 * 1024
 			});
 		} catch (bufferError) {
-			const result = await execa.$`git diff ${compareBranch}...HEAD`;
-			fullDiff = result.stdout;
+			fullDiff = (await execa.$`git diff ${compareBranch}...HEAD`).stdout;
 		}
 		const lockFiles = [
 			"package-lock.json",
@@ -248,11 +256,37 @@ async function getGitDiff(compareBranch) {
 			"Pipfile.lock",
 			"poetry.lock"
 		];
+		const ignoreGlobs = [
+			"**/*.min.js",
+			"**/*.min.css",
+			"**/dist/**",
+			"**/build/**",
+			"**/node_modules/**",
+			"**/.git/**",
+			"**/*.log",
+			"**/*.tmp",
+			"**/*.temp",
+			"**/*.sql",
+			"**/*.db"
+		];
 		const lines = fullDiff.split("\n");
 		const filteredLines = [];
 		let skipFile = false;
+		let currentFilePath = "";
 		for (const line of lines) {
-			if (line.startsWith("diff --git")) skipFile = lockFiles.some((lockFile) => line.includes(lockFile));
+			if (line.startsWith("diff --git")) {
+				const match = line.match(/diff --git a\/(.+?) b\//);
+				currentFilePath = match ? match[1] : "";
+				const isLockFile = lockFiles.some((lockFile) => line.includes(lockFile));
+				const matchesIgnoreGlob = ignoreGlobs.some((pattern) => {
+					try {
+						return (0, minimatch.minimatch)(currentFilePath, pattern);
+					} catch (error) {
+						return currentFilePath.includes(pattern.replace(/\*\*/g, "").replace(/\*/g, ""));
+					}
+				});
+				skipFile = isLockFile || matchesIgnoreGlob;
+			}
 			if (!skipFile) filteredLines.push(line);
 		}
 		return filteredLines.join("\n");
@@ -305,17 +339,18 @@ Some notes:
 			"--allowedTools",
 			"Bash(git *) Read Write Grep Glob TodoWrite",
 			"--output-format",
-			"json"
+			"json",
+			"--max-turns",
+			"5"
 		];
 		logger.log(`Running: ${claudePath} ${args.join(" ")}`);
-		const result = await (0, execa.$)({
+		const output = (await (0, execa.$)({
 			input: fullPrompt,
 			env: { ...process.env }
-		})`${claudePath} ${args}`;
-		const output = result.stdout;
+		})`${claudePath} ${args}`).stdout;
 		try {
-			const result$1 = JSON.parse(output);
-			displayClaudeMetrics(result$1);
+			const result = JSON.parse(output);
+			displayClaudeMetrics(result);
 		} catch (parseError) {
 			logger.log("⚠️  Could not parse Claude metrics from output");
 		}
@@ -569,7 +604,7 @@ async function updateExistingComment(config, commentId, newContent) {
 	const { token, org, project, repo, prId } = config;
 	const apiUrl = `https://dev.azure.com/${org}/${project}/_apis/git/repositories/${repo}/pullRequests/${prId}/threads/${commentId}/comments/1?api-version=7.1`;
 	const payload = { content: newContent };
-	const response = await makeHttpRequest(apiUrl, {
+	return await makeHttpRequest(apiUrl, {
 		method: "PATCH",
 		headers: {
 			Authorization: `Basic ${Buffer.from(`:${token}`).toString("base64")}`,
@@ -578,7 +613,6 @@ async function updateExistingComment(config, commentId, newContent) {
 		},
 		body: JSON.stringify(payload)
 	});
-	return response;
 }
 async function createNewComment(config, content) {
 	const { token, org, project, repo, prId } = config;
@@ -591,7 +625,7 @@ async function createNewComment(config, content) {
 		}],
 		status: 1
 	};
-	const response = await makeHttpRequest(apiUrl, {
+	return await makeHttpRequest(apiUrl, {
 		method: "POST",
 		headers: {
 			Authorization: `Basic ${Buffer.from(`:${token}`).toString("base64")}`,
@@ -600,7 +634,6 @@ async function createNewComment(config, content) {
 		},
 		body: JSON.stringify(payload)
 	});
-	return response;
 }
 async function postToAzureDevOps(reviewContent, config) {
 	const spinner = (0, ora.default)("Posting to Azure DevOps...").start();

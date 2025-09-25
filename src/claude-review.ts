@@ -8,6 +8,8 @@ import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { glob } from "fast-glob";
+import { minimatch } from "minimatch";
 
 import pino from "pino";
 import {
@@ -244,16 +246,51 @@ async function getGitDiff(compareBranch: string): Promise<string> {
       "poetry.lock",
     ];
 
-    // Filter out lock file changes from the diff
+    // Define ignore globs to filter out
+    const ignoreGlobs = [
+      "**/*.min.js",
+      "**/*.min.css",
+      "**/dist/**",
+      "**/build/**",
+      "**/node_modules/**",
+      "**/.git/**",
+      "**/*.log",
+      "**/*.tmp",
+      "**/*.temp",
+      "**/*.sql",
+      "**/*.db",
+    ];
+
+    // Filter out lock file changes and ignored patterns from the diff
     const lines = fullDiff.split("\n");
     const filteredLines: string[] = [];
     let skipFile = false;
+    let currentFilePath = "";
 
     for (const line of lines) {
       // Check if this is a new file header
       if (line.startsWith("diff --git")) {
-        // Check if this file should be skipped
-        skipFile = lockFiles.some((lockFile) => line.includes(lockFile));
+        // Extract file path from git diff header
+        // Format: "diff --git a/path/to/file b/path/to/file"
+        const match = line.match(/diff --git a\/(.+?) b\//);
+        currentFilePath = match ? match[1] : "";
+
+        // Check if this file should be skipped (lock files OR ignore globs)
+        const isLockFile = lockFiles.some((lockFile) =>
+          line.includes(lockFile)
+        );
+        const matchesIgnoreGlob = ignoreGlobs.some((pattern) => {
+          try {
+            return minimatch(currentFilePath, pattern);
+          } catch (error) {
+            // If minimatch fails, fall back to simple string matching
+            return currentFilePath.includes(
+              pattern.replace(/\*\*/g, "").replace(/\*/g, "")
+            );
+          }
+        });
+
+        skipFile = isLockFile || matchesIgnoreGlob;
       }
 
       // Include line if we're not skipping this file
@@ -336,13 +373,16 @@ Some notes:
       "Bash(git *) Read Write Grep Glob TodoWrite",
       "--output-format",
       "json",
+
+      "--max-turns",
+      "5",
     ];
 
     logger.log(`Running: ${claudePath} ${args.join(" ")}`);
 
     // Use execa to properly handle arguments with special characters
     const result = await $({
-      input: fullPrompt,
+      input: fullPrompt, // "/review" enough? need to test
       env: { ...process.env },
     })`${claudePath} ${args}`;
 
