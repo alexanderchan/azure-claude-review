@@ -46,6 +46,10 @@ claude-review -c develop
 
 # Use custom prompt file
 claude-review -p /path/to/custom-prompt.md
+
+# Specify a model
+claude-review --model sonnet
+claude-review --model claude-haiku-4-5-20251001
 ```
 
 ### Azure DevOps Integration
@@ -80,6 +84,7 @@ Options:
   -d, --directory <path>           Directory to review (default: current directory)
   -c, --compare-branch <branch>    Branch to compare against (default: "main")
   -p, --prompt-file <file>         Custom prompt file (default: built-in prompt)
+  -m, --model <model>              Model for the current session (e.g. 'sonnet', 'opus', or 'claude-haiku-4-5-20251001')
   --no-post                        Skip posting to Azure DevOps (just show review)
   --azure-pr <id>                  Azure DevOps PR ID (will auto-detect if not provided)
   --use-env-vars                   Use environment variables instead of Azure CLI auto-detection
@@ -115,6 +120,13 @@ claude-review
 
 # Just show review, don't post anywhere
 claude-review --no-post
+
+# Review with a specific model
+claude-review --model sonnet
+claude-review -m claude-haiku-4-5-20251001
+
+# Review and automatically post to Azure DevOps
+claude-review --post
 ```
 
 ## How it works

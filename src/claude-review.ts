@@ -77,6 +77,10 @@ const program = new Command()
     "Custom prompt file",
     path.join(__dirname, "../pr-review-prompt.md")
   )
+  .option(
+    "-m, --model <model>",
+    "Model for the current session. Provide an alias for the latest model (e.g. 'sonnet' or 'opus') or a model's full name (e.g. 'claude-sonnet-4-5-20250929')"
+  )
   .option("--post", "Automatically post to Azure DevOps without asking")
   .option("--no-post", "Skip posting to Azure DevOps (just show review)")
   .option(
@@ -157,7 +161,8 @@ async function main(): Promise<void> {
       reviewFile = await runClaudeCode(
         options.promptFile,
         gitDiff,
-        options.compareBranch
+        options.compareBranch,
+        options.model
       );
       claudeSpinner.succeed("Claude review completed");
 
@@ -308,7 +313,8 @@ async function getGitDiff(compareBranch: string): Promise<string> {
 async function runClaudeCode(
   promptFile: string,
   gitDiff: string,
-  compareBranch: string
+  compareBranch: string,
+  model?: string
 ): Promise<string> {
   const reviewFile = path.join(process.cwd(), "claude-review.md");
 
@@ -377,6 +383,11 @@ Some notes:
       "--max-turns",
       "5",
     ];
+
+    // Add model if specified
+    if (model) {
+      args.push("--model", model);
+    }
 
     logger.log(`Running: ${claudePath} ${args.join(" ")}`);
 

@@ -165,7 +165,7 @@ const logger = (0, pino.default)({
 });
 const __filename$1 = (0, url.fileURLToPath)(require("url").pathToFileURL(__filename).href);
 const __dirname$1 = path.default.dirname(__filename$1);
-const program = new __commander_js_extra_typings.Command().name("claude-review").description("Review code changes using Claude Code").version("1.0.0").option("-d, --directory <path>", "Directory to review", process.cwd()).option("-c, --compare-branch <branch>", "Branch to compare against", "main").option("-p, --prompt-file <file>", "Custom prompt file", path.default.join(__dirname$1, "../pr-review-prompt.md")).option("--post", "Automatically post to Azure DevOps without asking").option("--no-post", "Skip posting to Azure DevOps (just show review)").option("--azure-pr <id>", "Azure DevOps PR ID (will auto-detect if not provided)").option("--use-env-vars", "Use environment variables instead of Azure CLI auto-detection").option("--use-existing-review", "Use existing claude-review.md file instead of running Claude again").option("--append", "Append to existing Claude review comment instead of replacing it").option("--new-comment", "Always create a new comment instead of updating existing one").option("--remove-review-file", "Remove the claude-review.md file after processing");
+const program = new __commander_js_extra_typings.Command().name("claude-review").description("Review code changes using Claude Code").version("1.0.0").option("-d, --directory <path>", "Directory to review", process.cwd()).option("-c, --compare-branch <branch>", "Branch to compare against", "main").option("-p, --prompt-file <file>", "Custom prompt file", path.default.join(__dirname$1, "../pr-review-prompt.md")).option("-m, --model <model>", "Model for the current session. Provide an alias for the latest model (e.g. 'sonnet' or 'opus') or a model's full name (e.g. 'claude-sonnet-4-5-20250929')").option("--post", "Automatically post to Azure DevOps without asking").option("--no-post", "Skip posting to Azure DevOps (just show review)").option("--azure-pr <id>", "Azure DevOps PR ID (will auto-detect if not provided)").option("--use-env-vars", "Use environment variables instead of Azure CLI auto-detection").option("--use-existing-review", "Use existing claude-review.md file instead of running Claude again").option("--append", "Append to existing Claude review comment instead of replacing it").option("--new-comment", "Always create a new comment instead of updating existing one").option("--remove-review-file", "Remove the claude-review.md file after processing");
 program.parse();
 const options = program.opts();
 async function main() {
@@ -198,7 +198,7 @@ async function main() {
 			review = processClaudeOutput(reviewFile);
 		} else {
 			const claudeSpinner = (0, ora.default)("Running Claude review...").start();
-			reviewFile = await runClaudeCode(options.promptFile, gitDiff, options.compareBranch);
+			reviewFile = await runClaudeCode(options.promptFile, gitDiff, options.compareBranch, options.model);
 			claudeSpinner.succeed("Claude review completed");
 			review = processClaudeOutput(reviewFile);
 		}
@@ -294,7 +294,7 @@ async function getGitDiff(compareBranch) {
 		throw new Error(`Failed to get git diff: ${error.message}`);
 	}
 }
-async function runClaudeCode(promptFile, gitDiff, compareBranch) {
+async function runClaudeCode(promptFile, gitDiff, compareBranch, model) {
 	const reviewFile = path.default.join(process.cwd(), "claude-review.md");
 	try {
 		if (!fs.default.existsSync(promptFile)) throw new Error(`Prompt file not found: ${promptFile}`);
@@ -343,6 +343,7 @@ Some notes:
 			"--max-turns",
 			"5"
 		];
+		if (model) args.push("--model", model);
 		logger.log(`Running: ${claudePath} ${args.join(" ")}`);
 		const output = (await (0, execa.$)({
 			input: fullPrompt,
